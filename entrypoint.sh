@@ -4,6 +4,7 @@ USER_NAME="${SSH_USER:-dd}"
 USER_PASS="${SSH_PASSWORD:-dd}"
 PUBLIC_PORT="${PORT:-8080}"
 SSL_INTERNAL_PORT="${SSL_INTERNAL_PORT:-2443}"
+WS_INTERNAL_PORT="${WS_INTERNAL_PORT:-8880}"
 
 # =====================================================================
 # 🔥 SETUP DROPBEAR: Super Ringan, Full Speed, Anti-Lag
@@ -27,17 +28,12 @@ cat << 'EOF' > /etc/dropbear_banner
 EOF
 
 echo "[*] Mengonfigurasi User SSH..."
-# Pastikan user terdaftar resmi di sistem Alpine
 if ! id "$USER_NAME" &>/dev/null; then
     useradd -m -s /bin/bash "$USER_NAME"
 fi
 echo "$USER_NAME:$USER_PASS" | chpasswd
 
 echo "[*] Memulai DROPBEAR Server di Port Lokal 22..."
-# -F = Jalankan di foreground (opsional, tapi di sini kita bg dengan &)
-# -p = Binds ke port 127.0.0.1:22 agar aman dari luar
-# -b = Tampilkan banner custom
-# -a = Izinkan forward koneksi
 dropbear -p 127.0.0.1:22 -b /etc/dropbear_banner -a &
 
 # 🔥 TAMBAHAN SSL: Buat Sertifikat SSL Stunnel
@@ -61,9 +57,20 @@ EOF
 echo "[*] Memulai Stunnel (internal, port $SSL_INTERNAL_PORT)..."
 stunnel /etc/stunnel/stunnel.conf &
 
+# =====================================================================
+# 🌐 LAUNCH CLOUDFLARE ARGO TUNNEL (WITH TOKEN STERILIZER)
+# =====================================================================
 if [ -n "$CF_TUNNEL_TOKEN" ]; then
     echo "[*] Menjalankan Cloudflare Tunnel (Argo)..."
-    cloudflared tunnel run --token "$CF_TUNNEL_TOKEN" &
+    
+    # 🧼 SUNTIKAN SAKTI: Sikat spasi/newline gaib akibat salah copy-paste token
+    CLEAN_TOKEN=$(echo -n "$CF_TUNNEL_TOKEN" | tr -cd '[:print:]' | tr -d '[:space:]')
+    
+    # Eksekusi argo tunnel di background
+    cloudflared tunnel run --token "$CLEAN_TOKEN" &
+    sleep 2
+else
+    echo "[!] CF_TUNNEL_TOKEN kosong -> Cloudflare Tunnel dilewati."
 fi
 
 # 🎨 BANNER STARTUP LOG RAILWAY WARNA-WARNI DITENGAH
@@ -73,7 +80,7 @@ magenta="\e[1;35m"
 green="\e[1;32m"
 reset="\e[0m"
 
-rawTitle="⚡ GOLANG TUNNEL PRO: DROPBEAR ENGINE v5.6 FULL SPEED ACTIVE ⚡"
+rawTitle="⚡ GOLANG TUNNEL PRO: DROPBEAR + ARGO v5.6 FULL SPEED ACTIVE ⚡"
 rawOwner="👑 PRIVATE TUNNEL BY: DEDEFATHU 👑"
 
 paddingTitle=$(( (66 - ${#rawTitle}) / 2 ))
