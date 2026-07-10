@@ -13,10 +13,10 @@ const wsTargetPort = process.env.WS_TARGET_PORT || "22";
 console.log("==================================================================");
 console.log("⚡ NODEJS TUNNEL PRO: v3.2 LOCK LOW-PING DIRECT ENGINE ⚡");
 console.log("👑 PRIVATE TUNNEL BY: DEDEFATHU 👑");
-print("==================================================================");
+console.log("=================================================================="); // 🔥 TYPO SUDAH DI-FIX DI SINI BOS!
 
 const server = net.createServer((clientConn) => {
-    // Kunci TCP NoDelay biar paket gak ngerem
+    // Kunci TCP NoDelay biar paket gak ngerem sesaat
     clientConn.setNoDelay(true);
     clientConn.setKeepAlive(true, 10000);
 
@@ -76,7 +76,7 @@ const server = net.createServer((clientConn) => {
                 targetConn = net.connect({ host: wsTargetHost, port: parseInt(wsTargetPort) }, () => {
                     targetConn.setNoDelay(true);
                     
-                    // Langsung buang arah balik (Download) ke pipa biner murni biar gak telat
+                    // Langsung pasang arah balik (Download) ke pipa biner murni
                     targetConn.pipe(clientConn);
 
                     const idx = data.indexOf("SSH-");
@@ -94,7 +94,7 @@ const server = net.createServer((clientConn) => {
             return;
         }
 
-        // 🧠 PENYARING SAMPAH BRUTAL (Hanya hidup beberapa milidetik sebelum SSH konek)
+        // 🧠 PENYARING SAMPAH BRUTAL (Hanya hidup sampai SSH konek)
         if (targetConn && targetConn.writable) {
             if (!sshHandshakeFound) {
                 const idx = data.indexOf("SSH-");
@@ -103,8 +103,7 @@ const server = net.createServer((clientConn) => {
                     targetConn.write(data.slice(idx));
                     
                     // 🔥 SELESAI TUGAS! Detik ini juga hancurkan filter JS-nya.
-                    // Jalur internet lu dikunci langsung ke pipa biner C++ (.pipe)
-                    // Makanya ping-nya bakal lempeng kecil terus kayak awal ngonekin!
+                    // Jalur internet langsung dikunci masuk pipa biner C++ (.pipe)
                     clientConn.removeListener('data', handleTraffic);
                     clientConn.pipe(targetConn);
                 }
