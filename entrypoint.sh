@@ -7,14 +7,18 @@ SSL_INTERNAL_PORT="${SSL_INTERNAL_PORT:-2443}"
 WS_INTERNAL_PORT="${WS_INTERNAL_PORT:-8880}"
 
 # =====================================================================
-# 🔥 SETUP DROPBEAR: Super Ringan, Full Speed, Anti-Lag
+# 🔥 SETUP DROPBEAR DI UBUNTU: Super Ringan, Full Speed, Anti-Lag
 # =====================================================================
 echo "[*] Membuat direktori kunci Dropbear..."
 mkdir -p /etc/dropbear
 
-echo "[*] Menghasilkan Host Keys Dropbear..."
-dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key
-dropbearkey -t ecdsa -f /etc/dropbear/dropbear_ecdsa_host_key
+echo "[*] Menghasilkan Host Keys Dropbear (Jika belum ada)..."
+if [ ! -f /etc/dropbear/dropbear_rsa_host_key ]; then
+    dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key
+fi
+if [ ! -f /etc/dropbear/dropbear_ecdsa_host_key ]; then
+    dropbearkey -t ecdsa -f /etc/dropbear/dropbear_ecdsa_host_key
+fi
 
 echo "[*] Mengonfigurasi Banner Dropbear..."
 cat << 'EOF' > /etc/dropbear_banner
@@ -34,6 +38,9 @@ fi
 echo "$USER_NAME:$USER_PASS" | chpasswd
 
 echo "[*] Memulai DROPBEAR Server di Port Lokal 22..."
+# -p 127.0.0.1:22 = mengunci ke jalur internal agar tidak bocor keluar
+# -b = memanggil banner kustom lu
+# -a = mengizinkan port forwarding
 dropbear -p 127.0.0.1:22 -b /etc/dropbear_banner -a &
 
 # 🔥 TAMBAHAN SSL: Buat Sertifikat SSL Stunnel
@@ -55,18 +62,14 @@ cert = /etc/stunnel/stunnel.pem
 EOF
 
 echo "[*] Memulai Stunnel (internal, port $SSL_INTERNAL_PORT)..."
-stunnel /etc/stunnel/stunnel.conf &
+stunnel4 /etc/stunnel/stunnel.conf &
 
 # =====================================================================
 # 🌐 LAUNCH CLOUDFLARE ARGO TUNNEL (WITH TOKEN STERILIZER)
 # =====================================================================
 if [ -n "$CF_TUNNEL_TOKEN" ]; then
     echo "[*] Menjalankan Cloudflare Tunnel (Argo)..."
-    
-    # 🧼 SUNTIKAN SAKTI: Sikat spasi/newline gaib akibat salah copy-paste token
     CLEAN_TOKEN=$(echo -n "$CF_TUNNEL_TOKEN" | tr -cd '[:print:]' | tr -d '[:space:]')
-    
-    # Eksekusi argo tunnel di background
     cloudflared tunnel run --token "$CLEAN_TOKEN" &
     sleep 2
 else
@@ -80,7 +83,7 @@ magenta="\e[1;35m"
 green="\e[1;32m"
 reset="\e[0m"
 
-rawTitle="⚡ GOLANG TUNNEL PRO: DROPBEAR + ARGO v5.6 FULL SPEED ACTIVE ⚡"
+rawTitle="⚡ GOLANG TUNNEL PRO: UBUNTU + DROPBEAR v5.7 FULL SPEED ACTIVE ⚡"
 rawOwner="👑 PRIVATE TUNNEL BY: DEDEFATHU 👑"
 
 paddingTitle=$(( (66 - ${#rawTitle}) / 2 ))
