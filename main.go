@@ -43,7 +43,7 @@ func main() {
 	wsTargetPort := getEnv("WS_TARGET_PORT", "22")
 
 	log.Println("==================================================================")
-	log.Println("🚀 GOLANG TUNNEL PRO: ENGINE v5.6 DROPBEAR COMPATIBLE ACTIVE 🔥")
+	log.Println("🚀 GOLANG TUNNEL PRO: ENGINE v5.7 ARGO TUNNEL COMPATIBLE ACTIVE 🔥")
 	log.Println("==================================================================")
 
 	listener, err := net.Listen("tcp", ":"+listenPort)
@@ -57,11 +57,11 @@ func main() {
 		if err != nil {
 			continue
 		}
-		go handleDropbearTunnel(conn, sslTargetHost, sslTargetPort, wsTargetHost, wsTargetPort)
+		go handleArgoTunnel(conn, sslTargetHost, sslTargetPort, wsTargetHost, wsTargetPort)
 	}
 }
 
-func handleDropbearTunnel(c net.Conn, sslHost, sslPort, wsHost, wsPort string) {
+func handleArgoTunnel(c net.Conn, sslHost, sslPort, wsHost, wsPort string) {
 	turboTune(c) 
 	defer c.Close()
 
@@ -74,6 +74,7 @@ func handleDropbearTunnel(c net.Conn, sslHost, sslPort, wsHost, wsPort string) {
 	c.SetReadDeadline(time.Time{})
 	rawPayload := buf[:n]
 
+	// 🛡️ JALUR SSL DETECTION
 	if rawPayload[0] == TLS_HANDSHAKE_BYTE {
 		target, err := net.DialTimeout("tcp", sslHost+":"+sslPort, 4*time.Second)
 		if err != nil {
@@ -86,6 +87,7 @@ func handleDropbearTunnel(c net.Conn, sslHost, sslPort, wsHost, wsPort string) {
 		return
 	}
 
+	// 🌐 JALUR WEBSOCKET (ARGO & ENHANCED PAYLOAD)
 	reqStr := string(rawPayload)
 	wsKey := ""
 	for _, line := range strings.Split(reqStr, "\r\n") {
@@ -114,6 +116,7 @@ func handleDropbearTunnel(c net.Conn, sslHost, sslPort, wsHost, wsPort string) {
 		return
 	}
 
+	// Konek ke Dropbear Lokal
 	sshTarget, err := net.DialTimeout("tcp", wsHost+":"+wsPort, 4*time.Second)
 	if err != nil {
 		return
@@ -121,9 +124,13 @@ func handleDropbearTunnel(c net.Conn, sslHost, sslPort, wsHost, wsPort string) {
 	turboTune(sshTarget)
 	defer sshTarget.Close()
 
-	// Pemotong sampah payload kotor lu dialirkan ke Dropbear
+	// 🧼 ARGO FIX LOGIC: Jangan potong mentah-mentah di paket awal.
+	// Jika ada sisa data setelah handshake, kirim semua agar Argo Tunnel meneruskan stream-nya dengan utuh.
 	if idx := bytes.Index(rawPayload, []byte("SSH-")); idx != -1 {
 		_, _ = sshTarget.Write(rawPayload[idx:])
+	} else {
+		// Jika dilewatkan lewat Argo, biarkan data awal mengalir apa adanya tanpa dipotong paksa
+		_, _ = sshTarget.Write(rawPayload)
 	}
 
 	pipeData(c, sshTarget, true)
@@ -139,11 +146,10 @@ func pipeData(client, target net.Conn, isWS bool) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// Jalur A: HP -> Dropbear (Loss 100% Tanpa Delay)
+	// Jalur A: HP -> Dropbear (Loss Tanpa Rem)
 	go func() {
 		defer wg.Done()
 		buf := make([]byte, 65536)
-		first := true
 		for {
 			client.SetReadDeadline(time.Now().Add(120 * time.Second))
 			n, err := client.Read(buf)
@@ -152,13 +158,8 @@ func pipeData(client, target net.Conn, isWS bool) {
 			}
 			
 			data := buf[:n]
-			if isWS && first {
-				if idx := bytes.Index(data, []byte("SSH-")); idx != -1 {
-					data = data[idx:]
-					first = false
-				}
-			}
-
+			
+			// Biarkan data mengalir secara transparan agar Argo Tunnel & Dropbear sinkron secara asinkron
 			_, err = target.Write(data)
 			if err != nil {
 				break
