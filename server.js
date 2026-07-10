@@ -8,7 +8,7 @@ const WS_TARGET_PORT = 8880;
 
 const TLS_HANDSHAKE_BYTE = 0x16;
 
-console.log(`[mux] Mux Monster Kebal Upload Enhanced Active on Port: ${LISTEN_PORT}`);
+console.log(`[mux] Mux Monster Enhanced Fix Active on Port: ${LISTEN_PORT}`);
 
 const server = net.createServer({
     readableHighWaterMark: 1024 * 1024,
@@ -53,12 +53,12 @@ const server = net.createServer({
             targetConn.write(firstByte);
 
             if (isWsJalur) {
-                // 🚀 JALUR UPLOAD KEBAL MENTAL: Saringan Abadi Khusus Sampah Enhanced Susulan
+                // 🚀 JALUR UPLOAD: Saringan Abadi Khusus Sampah Enhanced Susulan
                 clientConn.on('data', (chunk) => {
                     let cleanChunk = chunk;
                     const chunkStr = chunk.toString('utf8');
 
-                    // Cegat jika ada sampah Enhanced bawaan HTTP Custom yang nyempil pas upload
+                    // Cegat jika ada sampah Enhanced bawaan HTTP Custom yang nyempil kapan pun
                     if (chunkStr.includes("PATCH") || chunkStr.includes("HTTP/") || chunkStr.includes("BMOVE")) {
                         if (chunkStr.includes("SSH-")) {
                             // Jika ada data SSH nempel setelah sampah, potong dan ambil SSH-nya aja
@@ -68,7 +68,7 @@ const server = net.createServer({
                             const idx = chunk.indexOf(Buffer.from([0x53, 0x53, 0x48]));
                             cleanChunk = chunk.slice(idx);
                         } else {
-                            // Murni ampas teks HTTP Custom susulan -> BAKAR HABIS DI TEMPAT!
+                            // Murni teks sampah susulan -> Bakar habis jangan oper ke Dropbear!
                             return; 
                         }
                     }
