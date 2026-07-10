@@ -7,7 +7,7 @@ const TARGET_HOST = process.env.WS_TARGET_HOST || "127.0.0.1";
 const TARGET_PORT = parseInt(process.env.WS_TARGET_PORT || "22");
 const DEFAULT_RESPONSE = "HTTP/1.1 101 Switching Protocols\r\n\r\n";
 
-console.log(`[ws-proxy] WS proxy jalan di 127.0.0.1:${LISTEN_PORT} -> Dropbear Pipa Paralon 256KB Active`);
+console.log(`[ws-proxy] 🚀 ENGINE MONSTER ACTIVE: 1MB BUFFER WITHOUT LIMITS 🚀`);
 
 function parseHeaders(rawBuffer) {
     const headers = {};
@@ -25,9 +25,9 @@ function parseHeaders(rawBuffer) {
 }
 
 const server = net.createServer({
-    // 🔥 PERBESAR PIPA SOCKET UTAMA DARI HP (256 KB)
-    readableHighWaterMark: 256 * 1024,
-    writableHighWaterMark: 256 * 1024
+    // 🔥 JEBOL PIPA DARI HP: Kunci di 1 Megabyte
+    readableHighWaterMark: 1024 * 1024,
+    writableHighWaterMark: 1024 * 1024
 }, (clientConn) => {
     clientConn.setNoDelay(true);
     let targetConn = null;
@@ -77,18 +77,18 @@ const server = net.createServer({
             clientConn.write(Buffer.from(DEFAULT_RESPONSE));
         }
 
-        // 🚀 HUBUNGKAN KE DROPBEAR DENGAN PIPA INTERNAL YANG DIGEDEIN (256 KB)
+        // 🚀 KONEK KE DROPBEAR: Pipa Digedein Jadi 1 Megabyte
         targetConn = net.connect({ 
             host: TARGET_HOST, 
             port: TARGET_PORT,
-            readableHighWaterMark: 256 * 1024,
-            writableHighWaterMark: 256 * 1024
+            readableHighWaterMark: 1024 * 1024,
+            writableHighWaterMark: 1024 * 1024
         }, () => {
             targetConn.setNoDelay(true);
 
             let firstPacket = true;
 
-            // 🚀 JALUR UPLOAD (HP -> DROPBEAR): Direct bypass murni loss tanpa pause/resume
+            // 🚀 JALUR UPLOAD: FULL HIGH SPEED DIRECT
             clientConn.on('data', (data) => {
                 if (firstPacket) {
                     firstPacket = false;
@@ -97,28 +97,18 @@ const server = net.createServer({
                             const idx = data.indexOf("SSH-");
                             data = data.slice(idx);
                         } else {
-                            return; // Buang sampah murni (continue)
+                            return; 
                         }
                     }
                 }
-                
-                if (targetConn.writable) {
-                    targetConn.write(data);
-                }
+                if (targetConn.writable) targetConn.write(data);
             });
 
-            // 🚀 JALUR DOWNLOAD (DROPBEAR -> HP): Pake pengaman biar ga luber RAM
+            // 🚀 JALUR DOWNLOAD: REM DIHANCURKAN! FULL LOSS PLONG 100%
             targetConn.on('data', (data) => {
                 if (clientConn.writable) {
-                    const flush = clientConn.write(data);
-                    if (!flush) {
-                        targetConn.pause();
-                    }
+                    clientConn.write(data);
                 }
-            });
-
-            clientConn.on('drain', () => {
-                if (targetConn) targetConn.resume();
             });
         });
 
