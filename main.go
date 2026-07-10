@@ -1,16 +1,13 @@
 package main
 
 import (
-	"crypto/rand"
+	"bytes"
 	"crypto/sha1"
 	"encoding/base64"
-	"fmt"
 	"log"
-	"math/big"
 	"net"
 	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -26,189 +23,187 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-// 🎰 MODE SABAR GENERATOR (Secure Random Jitter 1-4ms)
-func secureRandom(max int64) int64 {
-	nBig, err := rand.Int(rand.Reader, big.NewInt(max))
-	if err != nil {
-		return 0
-	}
-	return nBig.Int64()
-}
-
-// 🏎️ FEATURE HIGH SPEED MAX: Pelebaran Buffer TCP Tingkat Tinggi
+// 🏎️ TUNING HIGH SPEED MAX: Melonggarkan pipa data internal level OS Railway
 func turboTune(c net.Conn) {
 	if tcp, ok := c.(*net.TCPConn); ok {
 		_ = tcp.SetNoDelay(true)
 		_ = tcp.SetKeepAlive(true)
 		_ = tcp.SetKeepAlivePeriod(15 * time.Second)
-		
-		// Buffer diperlebar ke 256KB agar lalu lintas data download loss tanpa ngerem di OS
-		_ = tcp.SetReadBuffer(262144)  
-		_ = tcp.SetWriteBuffer(262144) 
+		_ = tcp.SetReadBuffer(262144)  // Buffer diperlebar ke 256KB biar download loss!
+		_ = tcp.SetWriteBuffer(262144) // Buffer upload diperlebar
 	}
 }
 
 func main() {
 	listenPort := getEnv("PORT", "8080")
-	sslTargetHost := getEnv("SSL_TARGET_HOST", "127.0.0.1")
-	sslTargetPort := getEnv("SSL_TARGET_PORT", "2443")
-	wsTargetHost := getEnv("WS_TARGET_HOST", "127.0.0.1")
-	wsTargetPort := getEnv("WS_TARGET_PORT", "22")
+	
+	// 🎨 BANNER STARTUP LOG RAILWAY WARNA-WARNI DITENGAH PRESISI
+	reset := "\033[0m"
+	cyan := "\033[36m"
+	yellow := "\033[33m"
+	magenta := "\033[35m"
+	green := "\033[32m"
 
-	log.Println("==================================================================")
-	log.Println("🚀 GOLANG TUNNEL PRO: v7.0 MODE SABAR + HIGH SPEED MAX ACTIVE 🔥")
-	log.Println("==================================================================")
+	rawTitle := "⚡ GOLANG TUNNEL PRO: ENGINE v8.0 PROVEN LOGIC MASTERPIECE ⚡"
+	rawOwner := "👑 PRIVATE TUNNEL BY: DEDEFATHU 👑"
+	
+	paddingTitle := (66 - len(rawTitle)) / 2
+	paddingOwner := (66 - len(rawOwner)) / 2
+	
+	centerTitle := strings.Repeat(" ", paddingTitle) + rawTitle
+	centerOwner := strings.Repeat(" ", paddingOwner) + rawOwner
 
-	listener, err := net.Listen("tcp", ":"+listenPort)
+	log.Println(cyan + "==================================================================" + reset)
+	log.Println(yellow + centerTitle + reset)
+	log.Println(magenta + centerOwner + reset)
+	log.Println(green + "==================================================================" + reset)
+	log.Printf(green+"[*] Engine listening smoothly on port: %s\n"+reset, listenPort)
+	log.Println(cyan + "==================================================================" + reset)
+	
+	l, err := net.Listen("tcp", ":"+listenPort)
 	if err != nil {
-		log.Fatalf("[-] Listener gagal: %v", err)
+		log.Fatalf("Gagal menjalankan listener: %v", err)
 	}
-	defer listener.Close()
+	defer l.Close()
 
 	for {
-		conn, err := listener.Accept()
+		c, err := l.Accept()
 		if err != nil {
 			continue
 		}
-		go handleUltimateStream(conn, sslTargetHost, sslTargetPort, wsTargetHost, wsTargetPort)
+		go handle(c)
 	}
 }
 
-func handleUltimateStream(c net.Conn, sslHost, sslPort, wsHost, wsPort string) {
-	turboTune(c) 
+func handle(c net.Conn) {
+	turboTune(c) // Suntikan High Speed
 	defer c.Close()
-
-	buf := make([]byte, 131072)
-	c.SetReadDeadline(time.Now().Add(4 * time.Second))
+	
+	// Mode Sabar 2 detik untuk membaca full tumpukan request payload kotor lu
+	c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	buf := make([]byte, 65536)
 	n, err := c.Read(buf)
 	if err != nil || n == 0 {
 		return
 	}
 	c.SetReadDeadline(time.Time{})
+
 	rawPayload := buf[:n]
 
-	// 🛡️ JALUR SSL DETECTION
+	// 🛡️ MULTIPLEXING JALUR SSL/TLS MURNI (Stunnel)
 	if rawPayload[0] == TLS_HANDSHAKE_BYTE {
-		target, err := net.DialTimeout("tcp", sslHost+":"+sslPort, 4*time.Second)
+		sslTargetHost := getEnv("SSL_TARGET_HOST", "127.0.0.1")
+		sslTargetPort := getEnv("SSL_TARGET_PORT", "2443")
+		
+		targetConn, err := net.Dial("tcp", sslTargetHost+":"+sslTargetPort)
 		if err != nil {
 			return
 		}
-		turboTune(target)
-		defer target.Close()
-		_, _ = target.Write(rawPayload)
-		pipeData(c, target, false)
+		turboTune(targetConn) // Suntikan High Speed ke Stunnel
+		defer targetConn.Close()
+
+		_, _ = targetConn.Write(rawPayload)
+		
+		b1 := make([]byte, 65536)
+		b2 := make([]byte, 65536)
+		go func() {
+			for {
+				rn, err := c.Read(b1)
+				if err != nil { return }
+				_, _ = targetConn.Write(b1[:rn])
+			}
+		}()
+		for {
+			rn, err := targetConn.Read(b2)
+			if err != nil { return }
+			_, _ = c.Write(b2[:rn])
+		}
 		return
 	}
 
-	// 🌐 JALUR WEBSOCKET + ARGO TUNNEL
-	reqStr := string(rawPayload)
+	// 🌐 JALUR WEBSOCKET HANDSHAKE
+	req := string(rawPayload)
 	wsKey := ""
-	for _, line := range strings.Split(reqStr, "\r\n") {
+	
+	for _, line := range strings.Split(req, "\r\n") {
 		if strings.Contains(strings.ToLower(line), "sec-websocket-key") {
-			if parts := strings.Split(line, ":"); len(parts) > 1 {
+			parts := strings.Split(line, ":")
+			if len(parts) > 1 {
 				wsKey = strings.TrimSpace(parts[1])
 				break
 			}
 		}
 	}
-
+    
 	if wsKey == "" {
-		wsKey = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
+		wsKey = base64.StdEncoding.EncodeToString([]byte(time.Now().String() + "turbo-salt"))
 	}
 
 	h := sha1.New()
 	h.Write([]byte(wsKey + WS_MAGIC))
-	acceptKey := base64.StdEncoding.EncodeToString(h.Sum(nil))
+	accept := base64.StdEncoding.EncodeToString(h.Sum(nil))
 
 	response := "HTTP/1.1 101 Switching Protocols\r\n" +
 		"Upgrade: websocket\r\n" +
 		"Connection: Upgrade\r\n" +
-		"Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n"
-	_, err = c.Write([]byte(response))
+		"Sec-WebSocket-Accept: " + accept + "\r\n\r\n"
+	_, _ = c.Write([]byte(response))
+
+	// Hubungkan ke Dropbear internal port 22
+	wsTargetHost := getEnv("WS_TARGET_HOST", "127.0.0.1")
+	wsTargetPort := getEnv("WS_TARGET_PORT", "22")
+	ssh, err := net.Dial("tcp", wsTargetHost+":"+wsTargetPort)
 	if err != nil {
 		return
 	}
+	turboTune(ssh) // Suntikan High Speed ke Dropbear
+	defer ssh.Close()
 
-	// Hubungkan ke Dropbear Lokal Ubuntu Lu
-	sshTarget, err := net.DialTimeout("tcp", wsHost+":"+wsPort, 4*time.Second)
-	if err != nil {
-		return
-	}
-	turboTune(sshTarget)
-	defer sshTarget.Close()
-
-	// Tembakkan paket awal payload kotor ke Dropbear agar dibaca perlahan
-	_, _ = sshTarget.Write(rawPayload)
-
-	pipeData(c, sshTarget, true)
+	go ioCopy(ssh, c, true) // Jalur HP -> SSH (Membawa saringan di putaran pertama)
+	ioCopy(c, ssh, false)   // Jalur SSH -> HP (Dengan lem perangko Cloudflare 15 detik)
 }
 
-func pipeData(client, target net.Conn, isWS bool) {
-	var once sync.Once
-	closeAll := func() {
-		_ = client.Close()
-		_ = target.Close()
+func ioCopy(dst, src net.Conn, filter bool) {
+	b := make([]byte, 65536)
+	first := true
+
+	for {
+		if !filter {
+			// 🔥 Ikuti logika sukses lu: Amankan jeda baca ke 15 detik pas sepi
+			_ = src.SetReadDeadline(time.Now().Add(15 * time.Second))
+		}
+
+		n, err := src.Read(b)
+		
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() && !filter {
+				// Tembak ping sewajarnya tiap 15 detik pas sepi biar jalur tetep hidup
+				_, _ = dst.Write([]byte{0x89, 0x00})
+				continue
+			}
+			return
+		}
+		
+		if n == 0 {
+			continue
+		}
+
+		// 🛡️ LOGIKA KERAMAT: Menyaring tulisan "SSH-" pas putaran pertama masuk pipa
+		if filter && first {
+			idx := bytes.Index(b[:n], []byte("SSH-"))
+			if idx != -1 { 
+				_, _ = dst.Write(b[idx:n]) 
+				first = false 
+			}
+		} else {
+			_, err = dst.Write(b[:n])
+			if err != nil {
+				return
+			}
+		}
+		
+		if !filter {
+			_ = src.SetReadDeadline(time.Time{})
+		}
 	}
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	// Jalur A: HP -> Dropbear (✨ MENGGUNAKAN MODE SABAR ANTI-STUCK)
-	go func() {
-		defer wg.Done()
-		buf := make([]byte, 65536)
-		for {
-			client.SetReadDeadline(time.Now().Add(120 * time.Second))
-			n, err := client.Read(buf)
-			if err != nil {
-				break
-			}
-			
-			// Tahan paket upload 1-4ms agar trik [split] payload lu mengalir berirama ke Dropbear
-			if isWS {
-				jitter := secureRandom(4) + 1
-				time.Sleep(time.Duration(jitter) * time.Millisecond)
-			}
-
-			_, err = target.Write(buf[:n])
-			if err != nil {
-				break
-			}
-		}
-		once.Do(closeAll)
-	}()
-
-	// Jalur B: Dropbear -> HP (🏎️ HIGH SPEED DOWNLOAD MAX - BYPASS TOTAL)
-	go func() {
-		defer wg.Done()
-		buf := make([]byte, 65536)
-		for {
-			target.SetReadDeadline(time.Now().Add(25 * time.Second))
-			n, err := target.Read(buf)
-			if err != nil {
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					if isWS {
-						// Heartbeat/Ping aman agar koneksi gak idle saat sepi
-						_, err = client.Write([]byte{0x89, 0x00})
-						if err != nil {
-							break
-						}
-						continue
-					}
-				}
-				break
-			}
-			
-			// Pipa download dilepas murni tanpa rem/sleep apa pun untuk meraih speed loss mentok kanan!
-			if n > 0 {
-				_, err = client.Write(buf[:n])
-				if err != nil {
-					break
-				}
-			}
-		}
-		once.Do(closeAll)
-	}()
-
-	wg.Wait()
 }
