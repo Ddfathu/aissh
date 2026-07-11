@@ -1,39 +1,17 @@
 #!/bin/bash
 
 # =================================================================
-# 🚀 ULTRA TURBO KERNEL v2.9 (ALPINE OPENSSH + INTELLIGENT USERADD) 🚀
+# 🚀 ULTRA TURBO KERNEL v2.7 (ALPINE OPENSSH + BANNER CLEAN REGULAR) 🚀
 # =================================================================
 echo "[*] Mengaktifkan TCP BBR dan Fair Queuing..."
 sysctl -w net.core.default_qdisc=fq 2>/dev/null
 sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
 
-echo "[*] Mengoptimalkan ukuran buffer TCP Kernel..."
+echo "[*] Mengoptimalkan ukuran buffer TCP Kernel (1MB Default)..."
 sysctl -w net.ipv4.tcp_rmem="4096 1048576 16777216" 2>/dev/null
 sysctl -w net.ipv4.tcp_wmem="4096 1048576 16777216" 2>/dev/null
 sysctl -w net.core.rmem_max=16777216 2>/dev/null
 sysctl -w net.core.wmem_max=16777216 2>/dev/null
-
-# 🛠️ FIX EMAS 1: Membuat Wrapper Script untuk menerjemahkan 'useradd' Ubuntu ke 'adduser' Alpine
-echo "[*] Membuat mesin penerjemah useradd untuk Alpine..."
-rm -f /usr/sbin/useradd /usr/sbin/userdel 2>/dev/null
-
-# Buat file useradd tiruan
-cat << 'EOF' > /usr/sbin/useradd
-#!/bin/bash
-# Tangkap argumen terakhir yang biasanya adalah USERNAME
-USERNAME="${@:${#@}}"
-# Eksekusi pake gaya Alpine murni
-/usr/sbin/adduser -D -s /bin/bash "$USERNAME"
-EOF
-chmod +x /usr/sbin/useradd
-
-# Buat file userdel tiruan
-cat << 'EOF' > /usr/sbin/userdel
-#!/bin/bash
-USERNAME="${@:${#@}}"
-/usr/sbin/deluser "$USERNAME"
-EOF
-chmod +x /usr/sbin/userdel
 
 USER_NAME="${SSH_USER:-dd}"
 USER_PASS="${SSH_PASSWORD:-dd}"
@@ -51,11 +29,12 @@ chmod 600 /etc/stunnel/stunnel.pem
 
 echo "[*] Mengonfigurasi User SSH (Alpine Mode)..."
 if ! id "$USER_NAME" &>/dev/null; then
-    /usr/sbin/adduser -D -s /bin/bash "$USER_NAME"
+    adduser -D -s /bin/bash "$USER_NAME"
     echo "$USER_NAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 fi
 echo "$USER_NAME:$USER_PASS" | chpasswd
 
+# 💎 FIX BANNER: Teks Polosan Rapi dan Simetris Khusus Log HTTP Custom
 echo "[*] Membuat Banner Rapi untuk OpenSSH..."
 cat << 'EOF' > /etc/ssh/ssh_banner
 ==================================================
@@ -88,8 +67,10 @@ PrintMotd no
 AcceptEnv LANG LC_*
 Subsystem sftp /usr/lib/ssh/sftp-server
 
+# Sambungkan file banner yang bersih ke OpenSSH
 Banner /etc/ssh/ssh_banner
 
+# Buka paksa algoritma jadul agar HTTP Custom bisa jabat tangan dengan sukses
 KexAlgorithms +diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1
 Ciphers +aes256-ctr,aes128-ctr
 MACs +hmac-sha1
@@ -113,23 +94,20 @@ connect = 127.0.0.1:22
 cert = /etc/stunnel/stunnel.pem
 EOF
 
-echo "[*] Mengonfigurasi shortcut dan auto-run menu..."
-cat <<'EOF' > /etc/bash.bashrc
+echo "[*] Menambahkan sesuatu di .bashrc..."
+cat <<'EOF'>> /etc/bash.bashrc
 clear
 alias c='clear'
 alias x='exit'
 alias cls='clear;ls'
-if [ -f /usr/local/bin/menu ]; then
-    menu
-fi
+menu
 EOF
-
-echo "source /etc/bash.bashrc" >> /root/.bashrc
 echo "source /etc/bash.bashrc" >> /home/"$USER_NAME"/.bashrc
 
 echo "[*] Memulai Stunnel..."
 stunnel /etc/stunnel/stunnel.conf &
 
+# --- Argo Tunnel (cloudflared) ---
 if [ -n "$CF_TUNNEL_TOKEN" ]; then
     echo "[*] Menjalankan Cloudflare Tunnel..."
     cloudflared tunnel run --url "http://127.0.0.1:$PUBLIC_PORT" --token "$CF_TUNNEL_TOKEN" &
