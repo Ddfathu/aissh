@@ -1,20 +1,34 @@
 const net = require('net');
+const crypto = require('crypto');
 
 const LISTEN_PORT = parseInt(process.env.PORT || "8080");
 const SSL_TARGET_HOST = process.env.SSL_TARGET_HOST || "127.0.0.1";
 const SSL_TARGET_PORT = parseInt(process.env.SSL_TARGET_PORT || "2443");
-const WS_TARGET_HOST = "127.0.0.1";
-const WS_TARGET_PORT = 8880; 
+const SSH_TARGET_PORT = parseInt(process.env.WS_TARGET_PORT || "22");
 
+const WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+const DEFAULT_RESPONSE = "HTTP/1.1 101 Switching Protocols\r\n\r\n";
 const TLS_HANDSHAKE_BYTE = 0x16;
 
-console.log(`[mux] Mux Monster Enhanced Fix Active on Port: ${LISTEN_PORT}`);
+console.log(`[monster-mux] ALL-IN-ONE ENGINE ACTIVE on Port: ${LISTEN_PORT} 🚀`);
 
-const server = net.createServer({
-    readableHighWaterMark: 1024 * 1024,
-    writableHighWaterMark: 1024 * 1024
-}, (clientConn) => {
-    clientConn.setNoDelay(true);
+function parseHeaders(rawBuffer) {
+    const headers = {};
+    try {
+        const lines = rawBuffer.toString('utf8').split("\r\n");
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.includes(":")) {
+                const parts = line.split(":");
+                headers[parts[0].trim().toLowerCase()] = parts.slice(1).join(":").trim();
+            }
+        }
+    } catch (e) {}
+    return headers;
+}
+
+// Handler Khusus WebSocket + Saringan Abadi Anti-Rekonek Enhanced
+function handleWebSocketJalur(clientConn, firstByte) {
     let targetConn = null;
 
     const destroyAll = () => {
@@ -22,74 +36,122 @@ const server = net.createServer({
         if (targetConn) targetConn.destroy();
     };
 
+    // Parangko Jabat Tangan WebSocket Awal
+    const headers = parseHeaders(firstByte);
+    const rawTextLower = firstByte.toString('utf8').toLowerCase();
+    const isWsUpgrade = rawTextLower.includes("upgrade: websocket") || headers["upgrade"] === "websocket";
+
+    if (isWsUpgrade) {
+        let wsKey = headers["sec-websocket-key"];
+        if (!wsKey && rawTextLower.includes("sec-websocket-key:")) {
+            try {
+                const lines = firstByte.toString('utf8').split("\r\n");
+                for (let line of lines) {
+                    if (line.toLowerCase().includes("sec-websocket-key")) {
+                        wsKey = line.split(":")[1].trim();
+                        break;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        if (!wsKey) wsKey = crypto.randomBytes(16).toString('base64');
+
+        const shasum = crypto.createHash('sha1');
+        shasum.update(wsKey + WS_MAGIC);
+        const acceptKey = shasum.digest('base64');
+
+        let response = "HTTP/1.1 101 Switching Protocols\r\n" +
+                       "Upgrade: websocket\r\n" +
+                       "Connection: Upgrade\r\n" +
+                       `Sec-WebSocket-Accept: ${acceptKey}\r\n\r\n`;
+        
+        clientConn.write(Buffer.from(response));
+    } else {
+        clientConn.write(Buffer.from(DEFAULT_RESPONSE));
+    }
+
+    // Hubungkan Langsung ke Core Dropbear internal port 22
+    targetConn = net.connect({ 
+        host: "127.0.0.1", 
+        port: SSH_TARGET_PORT,
+        readableHighWaterMark: 1024 * 1024,
+        writableHighWaterMark: 1024 * 1024
+    }, () => {
+        targetConn.setNoDelay(true);
+
+        // 🚀 JALUR UPLOAD KEBAL MENTAL: Jagain data upload dari ampas HTTP Custom
+        clientConn.on('data', (chunk) => {
+            let cleanChunk = chunk;
+            const chunkStr = chunk.toString('utf8');
+
+            if (chunkStr.includes("PATCH") || chunkStr.includes("HTTP/") || chunkStr.includes("BMOVE")) {
+                if (chunkStr.includes("SSH-")) {
+                    const idx = chunkStr.indexOf("SSH-");
+                    cleanChunk = chunk.slice(idx);
+                } else if (chunkStr.includes("\x53\x53\x48")) {
+                    const idx = chunk.indexOf(Buffer.from([0x53, 0x53, 0x48]));
+                    cleanChunk = chunk.slice(idx);
+                } else {
+                    return; // Sampah HTTP terdeteksi pas upload -> Bakar habis!
+                }
+            }
+
+            if (targetConn.writable) targetConn.write(cleanChunk);
+        });
+
+        // 🚀 JALUR DOWNLOAD: Ikat pipa burni 100% loss tanpa batasan
+        targetConn.pipe(clientConn);
+    });
+
+    targetConn.on('error', destroyAll);
+    targetConn.on('close', destroyAll);
+    clientConn.on('error', destroyAll);
+    clientConn.on('close', destroyAll);
+}
+
+// SERVER UTAMA (MULTIPLEXER GERBANG DEPAN)
+const server = net.createServer({
+    readableHighWaterMark: 1024 * 1024,
+    writableHighWaterMark: 1024 * 1024
+}, (clientConn) => {
+    clientConn.setNoDelay(true);
+
     clientConn.once('data', (firstByte) => {
         if (!firstByte || firstByte.length === 0) {
             clientConn.destroy();
             return;
         }
 
-        let targetHost, targetPort;
-        let isWsJalur = false;
-
+        // 🛡️ PILIH JALUR OTOMATIS
         if (firstByte[0] === TLS_HANDSHAKE_BYTE) {
-            targetHost = SSL_TARGET_HOST;
-            targetPort = SSL_TARGET_PORT;
-            isWsJalur = false;
-        } else {
-            targetHost = WS_TARGET_HOST;
-            targetPort = WS_TARGET_PORT;
-            isWsJalur = true;
-        }
-
-        targetConn = net.connect({ 
-            host: targetHost, 
-            port: targetPort,
-            readableHighWaterMark: 1024 * 1024,
-            writableHighWaterMark: 1024 * 1024
-        }, () => {
-            targetConn.setNoDelay(true);
-            
-            // Oper paket pertama
-            targetConn.write(firstByte);
-
-            if (isWsJalur) {
-                // 🚀 JALUR UPLOAD: Saringan Abadi Khusus Sampah Enhanced Susulan
-                clientConn.on('data', (chunk) => {
-                    let cleanChunk = chunk;
-                    const chunkStr = chunk.toString('utf8');
-
-                    // Cegat jika ada sampah Enhanced bawaan HTTP Custom yang nyempil kapan pun
-                    if (chunkStr.includes("PATCH") || chunkStr.includes("HTTP/") || chunkStr.includes("BMOVE")) {
-                        if (chunkStr.includes("SSH-")) {
-                            // Jika ada data SSH nempel setelah sampah, potong dan ambil SSH-nya aja
-                            const idx = chunkStr.indexOf("SSH-");
-                            cleanChunk = chunk.slice(idx);
-                        } else if (chunkStr.includes("\x53\x53\x48")) { // Cek binary header SSH raw
-                            const idx = chunk.indexOf(Buffer.from([0x53, 0x53, 0x48]));
-                            cleanChunk = chunk.slice(idx);
-                        } else {
-                            // Murni teks sampah susulan -> Bakar habis jangan oper ke Dropbear!
-                            return; 
-                        }
-                    }
-
-                    if (targetConn.writable) targetConn.write(cleanChunk);
-                });
-            } else {
-                // Jalur SSL murni langsung pake pipa secepat kilat
+            // JALUR SSL (STUNNEL): Langsung oper lurus pake pipa kilat
+            const targetConn = net.connect({ 
+                host: SSL_TARGET_HOST, 
+                port: SSL_TARGET_PORT,
+                readableHighWaterMark: 1024 * 1024,
+                writableHighWaterMark: 1024 * 1024
+            }, () => {
+                targetConn.setNoDelay(true);
+                targetConn.write(firstByte);
                 clientConn.pipe(targetConn);
-            }
+                targetConn.pipe(clientConn);
+            });
 
-            // 🚀 JALUR DOWNLOAD: Langsung ikat pipa murni tanpa batas speed
-            targetConn.pipe(clientConn);
-        });
+            const destroySSL = () => {
+                clientConn.destroy();
+                targetConn.destroy();
+            };
+            targetConn.on('error', destroySSL);
+            targetConn.on('close', destroySSL);
+            clientConn.on('error', destroySSL);
+            clientConn.on('close', destroySSL);
 
-        targetConn.on('error', destroyAll);
-        targetConn.on('close', destroyAll);
+        } else {
+            // JALUR WEBSOCKET (ENHANCED/REGULER): Alihkan ke sub-engine internal
+            handleWebSocketJalur(clientConn, firstByte);
+        }
     });
-
-    clientConn.on('error', destroyAll);
-    clientConn.on('close', destroyAll);
 });
 
 server.listen(LISTEN_PORT, '0.0.0.0');
