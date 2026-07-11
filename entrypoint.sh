@@ -1,21 +1,39 @@
 #!/bin/bash
 
 # =================================================================
-# 🚀 ULTRA TURBO KERNEL v2.8 (ALPINE COMPATIBLE + AUTO-MENU CONSOLE) 🚀
+# 🚀 ULTRA TURBO KERNEL v2.9 (ALPINE OPENSSH + INTELLIGENT USERADD) 🚀
 # =================================================================
 echo "[*] Mengaktifkan TCP BBR dan Fair Queuing..."
 sysctl -w net.core.default_qdisc=fq 2>/dev/null
 sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
 
-echo "[*] Mengoptimalkan ukuran buffer TCP Kernel (1MB Default)..."
+echo "[*] Mengoptimalkan ukuran buffer TCP Kernel..."
 sysctl -w net.ipv4.tcp_rmem="4096 1048576 16777216" 2>/dev/null
 sysctl -w net.ipv4.tcp_wmem="4096 1048576 16777216" 2>/dev/null
 sysctl -w net.core.rmem_max=16777216 2>/dev/null
 sysctl -w net.core.wmem_max=16777216 2>/dev/null
 
-# 🛠️ FIX EMAS 1: Jembatan Tiruan agar perintah useradd/userdel Ubuntu dikenali di Alpine
-ln -sf /usr/sbin/adduser /usr/sbin/useradd 2>/dev/null
-ln -sf /usr/sbin/deluser /usr/sbin/userdel 2>/dev/null
+# 🛠️ FIX EMAS 1: Membuat Wrapper Script untuk menerjemahkan 'useradd' Ubuntu ke 'adduser' Alpine
+echo "[*] Membuat mesin penerjemah useradd untuk Alpine..."
+rm -f /usr/sbin/useradd /usr/sbin/userdel 2>/dev/null
+
+# Buat file useradd tiruan
+cat << 'EOF' > /usr/sbin/useradd
+#!/bin/bash
+# Tangkap argumen terakhir yang biasanya adalah USERNAME
+USERNAME="${@:${#@}}"
+# Eksekusi pake gaya Alpine murni
+/usr/sbin/adduser -D -s /bin/bash "$USERNAME"
+EOF
+chmod +x /usr/sbin/useradd
+
+# Buat file userdel tiruan
+cat << 'EOF' > /usr/sbin/userdel
+#!/bin/bash
+USERNAME="${@:${#@}}"
+/usr/sbin/deluser "$USERNAME"
+EOF
+chmod +x /usr/sbin/userdel
 
 USER_NAME="${SSH_USER:-dd}"
 USER_PASS="${SSH_PASSWORD:-dd}"
@@ -33,7 +51,7 @@ chmod 600 /etc/stunnel/stunnel.pem
 
 echo "[*] Mengonfigurasi User SSH (Alpine Mode)..."
 if ! id "$USER_NAME" &>/dev/null; then
-    adduser -D -s /bin/bash "$USER_NAME"
+    /usr/sbin/adduser -D -s /bin/bash "$USER_NAME"
     echo "$USER_NAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 fi
 echo "$USER_NAME:$USER_PASS" | chpasswd
@@ -95,27 +113,23 @@ connect = 127.0.0.1:22
 cert = /etc/stunnel/stunnel.pem
 EOF
 
-# 🛠️ FIX EMAS 2: Pasang Auto-Menu di ROOT & USER dd agar pas buka console langsung jalan!
 echo "[*] Mengonfigurasi shortcut dan auto-run menu..."
 cat <<'EOF' > /etc/bash.bashrc
 clear
 alias c='clear'
 alias x='exit'
 alias cls='clear;ls'
-# Panggil menu otomatis saat login interaktif bash
 if [ -f /usr/local/bin/menu ]; then
     menu
 fi
 EOF
 
-# Tembak profil root dan user dd agar membaca konfigurasi bashrc di atas
 echo "source /etc/bash.bashrc" >> /root/.bashrc
 echo "source /etc/bash.bashrc" >> /home/"$USER_NAME"/.bashrc
 
 echo "[*] Memulai Stunnel..."
 stunnel /etc/stunnel/stunnel.conf &
 
-# --- Argo Tunnel (cloudflared) ---
 if [ -n "$CF_TUNNEL_TOKEN" ]; then
     echo "[*] Menjalankan Cloudflare Tunnel..."
     cloudflared tunnel run --url "http://127.0.0.1:$PUBLIC_PORT" --token "$CF_TUNNEL_TOKEN" &
