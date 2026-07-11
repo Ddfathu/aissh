@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =================================================================
-# 🚀 ULTRA TURBO KERNEL v2.6 (ALPINE OPENSSH + BANNER PELANGI ELITE) 🚀
+# 🚀 ULTRA TURBO KERNEL v2.7 (ALPINE OPENSSH + BANNER CLEAN REGULAR) 🚀
 # =================================================================
 echo "[*] Mengaktifkan TCP BBR dan Fair Queuing..."
 sysctl -w net.core.default_qdisc=fq 2>/dev/null
@@ -34,21 +34,20 @@ if ! id "$USER_NAME" &>/dev/null; then
 fi
 echo "$USER_NAME:$USER_PASS" | chpasswd
 
-# 🌈 RACIKAN BANNER PELANGI PREMIUM UNTUK HTTP CUSTOM
-echo "[*] Membuat Banner Pelangi untuk OpenSSH..."
-# Menggunakan format ANSI color code agar HTTP Custom membaca teks berwarna-warni
+# 💎 FIX BANNER: Teks Polosan Rapi dan Simetris Khusus Log HTTP Custom
+echo "[*] Membuat Banner Rapi untuk OpenSSH..."
 cat << 'EOF' > /etc/ssh/ssh_banner
-[1;31m==================================================[0m
-[1;35m               SELAMAT MENIKMATI 👑               [0m
-[1;33m              SSH SERVER RAILWAY MOD              [0m
-[1;32m==================================================[0m
-[1;36m SPESIFIKASI:                                     [0m
-[1;34m 🔹 NODE JS MULTIPLEXER                           [0m
-[1;35m 🔹 OS LINUX ALPINE SPEK RAMPING                  [0m
-[1;31m 🔹 OPEN SSH SERVER HIGH COMPATIBILITY            [0m
-[1;32m==================================================[0m
-[1;36m powered by : d e d e f a t h u                 [0m
-[1;31m==================================================[0m
+==================================================
+              👑 SELAMAT MENIKMATI 👑              
+              SSH SERVER RAILWAY MOD              
+==================================================
+ SPESIFIKASI:                                     
+ 🔹 MULTIPLEXER : NODE JS ULTRA ENGINE            
+ 🔹 OS PLATFORM : LINUX ALPINE (RAM MONSTER MODE)  
+ 🔹 SSH SERVICE : OPENSSH SERVER HIGH COMPAT      
+==================================================
+          powered by : d e d e f a t h u          
+==================================================
 EOF
 
 echo "[*] Menyiapkan Host Keys untuk OpenSSH..."
@@ -68,7 +67,7 @@ PrintMotd no
 AcceptEnv LANG LC_*
 Subsystem sftp /usr/lib/ssh/sftp-server
 
-# 🔥 Sambungkan file banner yang barusan kita buat agar muncul pas konek
+# Sambungkan file banner yang bersih ke OpenSSH
 Banner /etc/ssh/ssh_banner
 
 # Buka paksa algoritma jadul agar HTTP Custom bisa jabat tangan dengan sukses
