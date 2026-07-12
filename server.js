@@ -10,10 +10,11 @@ const WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const DEFAULT_RESPONSE = "HTTP/1.1 101 Switching Protocols\r\n\r\n";
 const TLS_HANDSHAKE_BYTE = 0x16;
 
-// Buffer besar untuk menampung speedtest upload
-const BUFFER_SIZE = 1024 * 1024; 
+// Menggunakan ukuran buffer standard MTU tinggi agar I/O seimbang
+const BUFFER_SIZE = 512 * 1024; 
+const CHUNK_STEP = 16 * 1024; // Potongan internal 16KB untuk kestabilan upload akhir
 
-console.log(`[monster-mux] ALL-IN-ONE FIXED ELITE v7.7 ACTIVE on Port: ${LISTEN_PORT} 🚀`);
+console.log(`[monster-mux] ALL-IN-ONE HYBRID BOOSTER v7.8 ACTIVE on Port: ${LISTEN_PORT} 🚀`);
 
 function parseHeaders(rawBuffer) {
     const headers = {};
@@ -35,15 +36,12 @@ const server = net.createServer({
     writableHighWaterMark: BUFFER_SIZE
 }, (clientConn) => {
     clientConn.setNoDelay(true);
-    clientConn.setKeepAlive(true, 30000);
+    clientConn.setKeepAlive(true, 60000); // Naikkan ke 60 detik untuk mencegah timeout akhir
 
     let targetConn = null;
     let isWsJalur = false;
     let firstPacketRead = false;
-    
-    // Counter paket untuk mengunci saringan teks agar tidak merusak data upload
     let packetCounter = 0; 
-
     let queueBuffers = []; 
     let backendReady = false;
 
@@ -52,8 +50,31 @@ const server = net.createServer({
         if (targetConn) targetConn.destroy();
     };
 
+    // LOGIC BARU: Mengirim data secara bertahap (Sub-Chunking) untuk mencegah kemacetan di Dropbear
+    const safeWriteToBackend = (dataChunk) => {
+        if (!targetConn || !targetConn.writable) return;
+
+        // Jika ukuran paket terlalu besar saat puncak upload, potong kecil-kecil
+        if (dataChunk.length > CHUNK_STEP) {
+            let offset = 0;
+            while (offset < dataChunk.length) {
+                const end = Math.min(offset + CHUNK_STEP, dataChunk.length);
+                const subChunk = dataChunk.slice(offset, end);
+                
+                if (!targetConn.write(subChunk)) {
+                    clientConn.pause();
+                }
+                offset += CHUNK_STEP;
+            }
+        } else {
+            if (!targetConn.write(dataChunk)) {
+                clientConn.pause();
+            }
+        }
+    };
+
     clientConn.on('data', (chunk) => {
-        packetCounter++; // Hitung setiap paket data yang masuk dari HP
+        packetCounter++;
 
         if (!firstPacketRead) {
             firstPacketRead = true;
@@ -114,40 +135,46 @@ const server = net.createServer({
                     
                     if (queueBuffers.length > 0) {
                         for (let qChunk of queueBuffers) {
-                            if (targetConn.writable) targetConn.write(qChunk);
+                            safeWriteToBackend(qChunk);
                         }
                         queueBuffers = [];
                     }
                 });
             }
 
-            // Data dari server (Dropbear) langsung dikirim murni tanpa diubah ke format WS
             targetConn.on('data', (bChunk) => {
-                if (clientConn.writable) clientConn.write(bChunk);
+                if (clientConn.writable) {
+                    if (!clientConn.write(bChunk)) {
+                        targetConn.pause();
+                    }
+                }
             });
+
+            // Auto-Flush RAM/Buffer saat socket siap menerima data lagi
+            targetConn.on('drain', () => { 
+                setImmediate(() => clientConn.resume()); 
+            });
+            clientConn.on('drain', () => { 
+                setImmediate(() => targetConn.resume()); 
+            });
+
             targetConn.on('error', destroyAll);
             targetConn.on('close', destroyAll);
             return;
         }
 
-        // 🚀 PROSES SARINGAN DATA JALUR WEBSOCKET ENHANCED
         if (isWsJalur) {
             let cleanChunk = chunk;
 
-            // 🔥 KUNCI UTAMA: Saringan enhanced andalan Anda HANYA aktif pada 3 paket pertama (Fase Handshake)
-            // Lewat dari 3 paket, saringan MATI TOTAL. Jadi data SPEEDTEST UPLOAD tidak akan tersentuh atau rusak!
             if (packetCounter <= 3) {
                 const chunkStr = chunk.toString('utf8');
-
                 if (chunkStr.includes("PATCH") || chunkStr.includes("HTTP/") || chunkStr.includes("BMOVE") || chunkStr.includes("GET ")) {
                     if (chunkStr.includes("SSH-")) {
-                        const idx = chunkStr.indexOf("SSH-");
-                        cleanChunk = chunk.slice(idx);
+                        cleanChunk = chunk.slice(chunkStr.indexOf("SSH-"));
                     } else if (chunkStr.includes("\x53\x53\x48")) {
-                        const idx = chunk.indexOf(Buffer.from([0x53, 0x53, 0x48]));
-                        cleanChunk = chunk.slice(idx);
+                        cleanChunk = chunk.slice(chunk.indexOf(Buffer.from([0x53, 0x53, 0x48])));
                     } else {
-                        return; // Ampas HTTP murni dibakar (Kesaktian awal terjaga)
+                        return; 
                     }
                 }
             }
@@ -155,13 +182,7 @@ const server = net.createServer({
             if (!backendReady) {
                 queueBuffers.push(cleanChunk);
             } else {
-                if (targetConn.writable) {
-                    // Penanganan aliran data deras (Backpressure Control) agar tidak disconnect saat upload masif
-                    if (!targetConn.write(cleanChunk)) {
-                        clientConn.pause();
-                        targetConn.once('drain', () => clientConn.resume());
-                    }
-                }
+                safeWriteToBackend(cleanChunk);
             }
         } else {
             if (!backendReady) {
