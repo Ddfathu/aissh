@@ -1,6 +1,6 @@
 FROM alpine:3.20
 
-# 1. Tambahkan python3 ke dalam daftar instalasi apk Alpine bos
+# 1. Tambahkan gcompat (PENTING: untuk perbaikan bug glibc/musl di Alpine)
 RUN apk update && apk add --no-cache \
     stunnel \
     openssl \
@@ -11,7 +11,8 @@ RUN apk update && apk add --no-cache \
     npm \
     python3 \
     openssh-server \
-    openssh-client
+    openssh-client \
+    gcompat 
 
 # 2. Install cloudflared (Argo Tunnel) untuk Linux AMD64
 RUN curl -fsSL -o /usr/local/bin/cloudflared \
@@ -25,7 +26,7 @@ RUN mkdir -p /var/run/sshd /var/run/stunnel /etc/stunnel
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# 5. Copy core Javascript Muxer v7.0
+# 5. Copy core Javascript Muxer v8.0 (Gunakan versi 8.0 Tank Baja kemarin)
 COPY server.js /server.js
 
 EXPOSE 8080
