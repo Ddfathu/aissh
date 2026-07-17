@@ -10,10 +10,9 @@ const WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const DEFAULT_RESPONSE = "HTTP/1.1 101 Switching Protocols\r\n\r\n";
 const TLS_HANDSHAKE_BYTE = 0x16;
 
-// Buffer besar untuk menampung speedtest upload
 const BUFFER_SIZE = 1024 * 1024; 
 
-console.log(`[monster-mux] ALL-IN-ONE FIXED ELITE v7.7 ACTIVE on Port: ${LISTEN_PORT} 🚀`);
+console.log(`[monster-mux] ALL-IN-ONE FIXED ELITE v7.7.1 OPTIMIZED ACTIVE on Port: ${LISTEN_PORT} 🚀`);
 
 function parseHeaders(rawBuffer) {
     const headers = {};
@@ -40,8 +39,6 @@ const server = net.createServer({
     let targetConn = null;
     let isWsJalur = false;
     let firstPacketRead = false;
-    
-    // Counter paket untuk mengunci saringan teks agar tidak merusak data upload
     let packetCounter = 0; 
 
     let queueBuffers = []; 
@@ -53,25 +50,20 @@ const server = net.createServer({
     };
 
     clientConn.on('data', (chunk) => {
-        packetCounter++; // Hitung setiap paket data yang masuk dari HP
+        packetCounter++;
 
         if (!firstPacketRead) {
             firstPacketRead = true;
             
+            let connectOptions = {};
+
             if (chunk[0] === TLS_HANDSHAKE_BYTE) {
                 isWsJalur = false;
-                targetConn = net.connect({ 
-                    host: SSL_TARGET_HOST, 
-                    port: SSL_TARGET_PORT,
-                    readableHighWaterMark: BUFFER_SIZE,
-                    writableHighWaterMark: BUFFER_SIZE
-                }, () => {
-                    targetConn.setNoDelay(true);
-                    targetConn.write(chunk);
-                    backendReady = true;
-                });
+                connectOptions = { host: SSL_TARGET_HOST, port: SSL_TARGET_PORT };
             } else {
                 isWsJalur = true;
+                connectOptions = { host: "127.0.0.1", port: SSH_TARGET_PORT };
+
                 const headers = parseHeaders(chunk);
                 const rawTextLower = chunk.toString('utf8').toLowerCase();
                 const isWsUpgrade = rawTextLower.includes("upgrade: websocket") || headers["upgrade"] === "websocket";
@@ -102,43 +94,59 @@ const server = net.createServer({
                 } else {
                     clientConn.write(Buffer.from(DEFAULT_RESPONSE));
                 }
-
-                targetConn = net.connect({ 
-                    host: "127.0.0.1", 
-                    port: SSH_TARGET_PORT,
-                    readableHighWaterMark: BUFFER_SIZE,
-                    writableHighWaterMark: BUFFER_SIZE
-                }, () => {
-                    targetConn.setNoDelay(true);
-                    backendReady = true;
-                    
-                    if (queueBuffers.length > 0) {
-                        for (let qChunk of queueBuffers) {
-                            if (targetConn.writable) targetConn.write(qChunk);
-                        }
-                        queueBuffers = [];
-                    }
-                });
             }
 
-            // Data dari server (Dropbear) langsung dikirim murni tanpa diubah ke format WS
-            targetConn.on('data', (bChunk) => {
-                if (clientConn.writable) clientConn.write(bChunk);
+            // Inisialisasi koneksi ke backend dengan buffer besar
+            targetConn = net.connect({
+                ...connectOptions,
+                readableHighWaterMark: BUFFER_SIZE,
+                writableHighWaterMark: BUFFER_SIZE
             });
+
+            targetConn.setNoDelay(true);
+
+            // PASANG LISTENER SEBELUM CONNECT SELESAI (Menghindari data loss)
+            targetConn.on('data', (bChunk) => {
+                if (clientConn.writable) {
+                    if (!clientConn.write(bChunk)) {
+                        targetConn.pause();
+                        clientConn.once('drain', () => targetConn.resume());
+                    }
+                }
+            });
+
             targetConn.on('error', destroyAll);
             targetConn.on('close', destroyAll);
+
+            targetConn.on('connect', () => {
+                backendReady = true;
+                
+                // Kirim paket pertama
+                if (isWsJalur) {
+                    // Jalur WS tidak perlu kirim chunk pertama HTTP-nya ke Dropbear, 
+                    // tapi jika ada saringan awal silakan sesuaikan. Di sini kita langsung kuras queue jika ada.
+                } else {
+                    targetConn.write(chunk); // Kirim handshake TLS mentah
+                }
+
+                // Kuras antrean paket ke-2, ke-3 dst yang sempat tertahan baik SSL maupun WS
+                if (queueBuffers.length > 0) {
+                    for (let qChunk of queueBuffers) {
+                        if (targetConn.writable) targetConn.write(qChunk);
+                    }
+                    queueBuffers = [];
+                }
+            });
+
             return;
         }
 
-        // 🚀 PROSES SARINGAN DATA JALUR WEBSOCKET ENHANCED
+        // 🚀 PROSES DATA PAKET BERIKUTNYA (Paket 2, 3, dst)
         if (isWsJalur) {
             let cleanChunk = chunk;
 
-            // 🔥 KUNCI UTAMA: Saringan enhanced andalan Anda HANYA aktif pada 3 paket pertama (Fase Handshake)
-            // Lewat dari 3 paket, saringan MATI TOTAL. Jadi data SPEEDTEST UPLOAD tidak akan tersentuh atau rusak!
-            if (packetCounter <= 3) {
+            if (packetCounter <= 5) { // Ditambah toleransi fragmentasi
                 const chunkStr = chunk.toString('utf8');
-
                 if (chunkStr.includes("PATCH") || chunkStr.includes("HTTP/") || chunkStr.includes("BMOVE") || chunkStr.includes("GET ")) {
                     if (chunkStr.includes("SSH-")) {
                         const idx = chunkStr.indexOf("SSH-");
@@ -147,7 +155,7 @@ const server = net.createServer({
                         const idx = chunk.indexOf(Buffer.from([0x53, 0x53, 0x48]));
                         cleanChunk = chunk.slice(idx);
                     } else {
-                        return; // Ampas HTTP murni dibakar (Kesaktian awal terjaga)
+                        return; 
                     }
                 }
             }
@@ -155,8 +163,7 @@ const server = net.createServer({
             if (!backendReady) {
                 queueBuffers.push(cleanChunk);
             } else {
-                if (targetConn.writable) {
-                    // Penanganan aliran data deras (Backpressure Control) agar tidak disconnect saat upload masif
+                if (targetConn && targetConn.writable) {
                     if (!targetConn.write(cleanChunk)) {
                         clientConn.pause();
                         targetConn.once('drain', () => clientConn.resume());
@@ -164,10 +171,16 @@ const server = net.createServer({
                 }
             }
         } else {
+            // Jalur SSL
             if (!backendReady) {
                 queueBuffers.push(chunk);
             } else {
-                if (targetConn.writable) targetConn.write(chunk);
+                if (targetConn && targetConn.writable) {
+                    if (!targetConn.write(chunk)) {
+                        clientConn.pause();
+                        targetConn.once('drain', () => clientConn.resume());
+                    }
+                }
             }
         }
     });
