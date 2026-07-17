@@ -1,20 +1,25 @@
 #!/bin/bash
 
+# 🔥 KUNCI UTAMA ANTI REKONEK: Buka paksa limit socket & stack size Alpine Linux
+ulimit -n 65535
+ulimit -s unlimited
+
 # =================================================================
-# 🚀 ULTRA TURBO KERNEL v2.8 (FIXED FOR MASSIVE SPEEDTEST UPLOAD) 🚀
+# 🚀 ULTRA TURBO KERNEL v2.9 (FIXED FOR ALPINE BUFFERBLOAT UPLOAD) 🚀
 # =================================================================
 echo "[*] Mengaktifkan TCP BBR dan Fair Queuing..."
 sysctl -w net.core.default_qdisc=fq 2>/dev/null
 sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
 
-echo "[*] Mengoptimalkan ukuran buffer TCP Kernel (BUFFER DITINGKATKAN)..."
-# Angka tengah (default) dinaikkan ke 4MB & Maksimal ke 32MB agar tidak overload pas upload
-sysctl -w net.ipv4.tcp_rmem="4096 4194304 33554432" 2>/dev/null
-sysctl -w net.ipv4.tcp_wmem="4096 4194304 33554432" 2>/dev/null
-sysctl -w net.core.rmem_max=33554432 2>/dev/null
-sysctl -w net.core.wmem_max=33554432 2>/dev/null
-# Tambahan tweaks anti packet loss saat upload deras
-sysctl -w net.core.netdev_max_backlog=10000 2>/dev/null
+echo "[*] Mengoptimalkan ukuran buffer TCP Kernel (BUFFER EKSTREM)..."
+# Angka tengah (default) dinaikkan ke 8MB & Maksimal ke 16MB biar gak drop pas badai upload
+sysctl -w net.ipv4.tcp_rmem="4096 8388608 16777216" 2>/dev/null
+sysctl -w net.ipv4.tcp_wmem="4096 8388608 16777216" 2>/dev/null
+sysctl -w net.core.rmem_max=16777216 2>/dev/null
+sysctl -w net.core.wmem_max=16777216 2>/dev/null
+
+# Longgarkan antrean antarmuka jaringan agar ping tidak bengkak ke 800ms
+sysctl -w net.core.netdev_max_backlog=50000 2>/dev/null
 sysctl -w net.ipv4.tcp_max_syn_backlog=8192 2>/dev/null
 
 USER_NAME="${SSH_USER:-dd}"
@@ -79,7 +84,6 @@ echo "[*] Memulai OpenSSH Server di Port Lokal 22..."
 /usr/sbin/sshd
 
 echo "[*] Membuat konfigurasi Stunnel..."
-# 🛠 FIX KUNCI: Menghapus chroot agar Stunnel tidak crash saat badai upload
 cat <<EOF > /etc/stunnel/stunnel.conf
 pid = /var/run/stunnel.pid
 foreground = yes
@@ -108,9 +112,10 @@ stunnel /etc/stunnel/stunnel.conf &
 
 # --- Argo Tunnel (cloudflared) ---
 if [ -n "$CF_TUNNEL_TOKEN" ]; then
-    echo "[*] Menjalankan Cloudflare Tunnel..."
-    cloudflared tunnel run --url "http://127.0.0.1:$PUBLIC_PORT" --token "$CF_TUNNEL_TOKEN" &
+    echo "[*] Menjalankan Cloudflare Tunnel (Low Latency Mode)..."
+    # Diarahkan paksa pake http2 agar cloudflared bypass bufferbloat mentah
+    cloudflared tunnel run --protocol http2 --url "http://127.0.0.1:$PUBLIC_PORT" --token "$CF_TUNNEL_TOKEN" &
 fi
 
-echo "[*] Memulai All-In-One Node.js Muxer Monster v7.0..."
+echo "[*] Memulai All-In-One Node.js Muxer Monster..."
 exec env PORT="$PUBLIC_PORT" SSL_TARGET_HOST="127.0.0.1" SSL_TARGET_PORT="$SSL_INTERNAL_PORT" node /server.js
