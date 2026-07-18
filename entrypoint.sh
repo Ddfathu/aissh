@@ -5,7 +5,7 @@ ulimit -n 65535
 ulimit -s unlimited
 
 # =================================================================
-# 🚀 ULTRA TURBO KERNEL v3.0 (OPTIMIZED FOR GOLANG ROUTINES) 🚀
+# 🚀 ULTRA TURBO KERNEL v3.2 (PURE STANDARD FOR GOLANG + OPENSSH) 🚀
 # =================================================================
 echo "[*] Mengaktifkan TCP BBR dan Fair Queuing..."
 sysctl -w net.core.default_qdisc=fq 2>/dev/null
@@ -50,7 +50,7 @@ cat << 'EOF' > /etc/ssh/ssh_banner
               SSH SERVER RAILWAY MOD              
 ==================================================
  SPESIFIKASI:                                     
- 🔹 MULTIPLEXER : GOLANG HIGH-SPEED CORE v3.0    
+ 🔹 MULTIPLEXER : GOLANG HIGH-SPEED CORE v3.2    
  🔹 OS PLATFORM : LINUX ALPINE (RAM MONSTER MODE)  
  🔹 SSH SERVICE : OPENSSH SERVER HIGH COMPAT      
 ==================================================
@@ -61,7 +61,7 @@ EOF
 echo "[*] Menyiapkan Host Keys untuk OpenSSH..."
 ssh-keygen -A
 
-echo "[*] Membuat konfigurasi khusus OpenSSH..."
+echo "[*] Membuat konfigurasi OpenSSH Suci Murni (Anti-Rekonek Version)..."
 cat << 'EOF' > /etc/ssh/sshd_config
 Port 22
 ListenAddress 127.0.0.1
@@ -75,11 +75,12 @@ PrintMotd no
 AcceptEnv LANG LC_*
 Subsystem sftp /usr/lib/ssh/sftp-server
 Banner /etc/ssh/ssh_banner
-KexAlgorithms +diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1
-Ciphers +aes256-ctr,aes128-ctr
-MACs +hmac-sha1
 
-# SAKLAR ANTI TIMEOUT: Maksa ping ke HP tiap 20 detik agar Cloudflare gak mutus sepihak
+# 🛠 KUNCI UTAMA ANTI TIMEOUT:
+# Mengaktifkan loose DNS check agar jabat tangan asinkronus lebih lancar
+UseDNS no
+
+# SAKLAR TIMEOUT JALUR: Server maksa ping ke HP tiap 20 detik biar Cloudflare gak mutus sepihak
 ClientAliveInterval 20
 ClientAliveCountMax 3
 EOF
