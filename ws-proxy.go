@@ -97,7 +97,7 @@ func handleWS(client net.Conn, sshTarget string) {
 		_, _ = client.Write([]byte(defaultResp))
 	}
 
-	// Hubungkan ke Dropbear SSH Backend
+	// Hubungkan ke Dropbear/OpenSSH Backend
 	sshConn, err := net.DialTimeout("tcp", sshTarget, 5*time.Second)
 	if err != nil {
 		return
@@ -107,11 +107,11 @@ func handleWS(client net.Conn, sshTarget string) {
 
 	done := make(chan struct{}, 2)
 
-	// --- FIX DROPBEAR FILTER: ANTI-REKONEK PAS UPLOAD SPEEDTEST ---
+	// --- FIX DROPBEAR FILTER: ANTI-SAMPAH PAYLOAD JUMBO MULTI-CHUNK & ANTI-DC ---
 	go func() {
 		defer func() { done <- struct{}{} }()
 		buffer := make([]byte, BufferSize)
-		firstPacket := true
+		filtering := true
 		var totalRead int
 
 		for {
@@ -120,23 +120,26 @@ func handleWS(client net.Conn, sshTarget string) {
 				data := buffer[:n]
 				totalRead += n
 
-				if firstPacket {
-					// 1. Cek secara presisi keberadaan banner SSH
+				if filtering {
+					// 1. Cari banner SSH di dalam data stream saat ini
 					if idx := bytes.Index(data, []byte("SSH-")); idx != -1 {
 						data = data[idx:]
-						firstPacket = false // Banner ketemu, matikan filter selamanya
+						filtering = false // Banner ketemu! Matikan filter untuk seterusnya
 					} else if totalRead > 4096 {
-						// 2. TWEAK UPLOAD BYPASS:
-						// Jika data yang masuk dari client sudah membanjiri > 4KB tapi banner SSH- belum lewat,
-						// ini dipastikan merupakan stream data upload besar/speedtest.
-						// Bypass paksa filter agar paket data tidak dibuang dan VPN tidak timeout/DC.
-						firstPacket = false
+						// 2. Bypass jika sudah lewat 4KB (Proteksi Speedtest Upload)
+						// Jika sudah 4KB sampah lewat dan tidak ada SSH-, anggap ini data tunnel murni
+						filtering = false
 					} else {
-						// 3. Jika masih paket awal berukuran kecil dan isinya sampah manipulasi operator, buang keluar.
+						// 3. Masih di bawah 4KB dan banner belum ketemu? 
+						// Artinya chunk ini full sampah payload, buang dan lanjut baca chunk berikutnya.
+						if err != nil {
+							return
+						}
 						continue
 					}
 				}
 				
+				// Kirim data yang sudah bersih (atau data bypass) ke SSH
 				_, wErr := sshConn.Write(data)
 				if wErr != nil {
 					return
