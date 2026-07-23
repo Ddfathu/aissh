@@ -28,6 +28,14 @@ RUN curl -fsSL -o /usr/local/bin/cloudflared \
     https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
     && chmod +x /usr/local/bin/cloudflared
 
+# --- TAMBAHAN UNTUK UDPGW DI ALPINE (TANPA MENGUBAH YANG LAIN) ---
+RUN curl -fsSL -o /usr/local/bin/badvpn-udpgw \
+    https://github.com/ambrop72/badvpn/releases/download/1.999.130/badvpn-linux-amd64-badvpn-1.999.130.tar.bz2 \
+    || curl -fsSL -o /tmp/badvpn.tar.gz https://raw.githubusercontent.com/ganjarprasetio/badvpn-udpgw-alpine/main/badvpn-udpgw \
+    && if [ -f /tmp/badvpn.tar.gz ]; then mv /tmp/badvpn.tar.gz /usr/local/bin/badvpn-udpgw; fi \
+    && chmod +x /usr/local/bin/badvpn-udpgw
+# ----------------------------------------------------------------
+
 RUN mkdir -p /var/run/sshd /var/run/stunnel /etc/stunnel
 
 COPY entrypoint.sh /entrypoint.sh
